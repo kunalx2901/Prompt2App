@@ -1,0 +1,333 @@
+
+SYSTEM ARCHITECTURE DOCUMENT
+Project: Prompt2App
+===========================================
+
+1. OVERVIEW
+-------------------------------------------
+Prompt2App is a cloud-native, serverless, edge-based web application that enables users to generate,
+edit, and preview complete multi-file Expo (React Native) mobile applications using natural language prompts.
+
+The system uses the following core technologies:
+
+Frontend:
+- React (Vite)
+- Tailwind CSS
+- Monaco Editor
+- WebSockets
+- QR Code Library
+
+Backend (Serverless Edge):
+- Cloudflare Workers (API Layer)
+- Cloudflare Durable Objects (Per-project State Management)
+- Cloudflare R2 (Persistent Object Storage)
+
+External Services:
+- AI Inference API (e.g., Gemini or HuggingFace)
+- Expo Snack API (Live Preview Runtime)
+
+The entire system runs on Cloudflare’s Global Edge network and does not rely on traditional servers such as EC2 or virtual machines.
+
+
+2. HIGH-LEVEL SYSTEM FLOW
+-------------------------------------------
+Client Browser
+    → Cloudflare Global Edge
+        → Cloudflare Worker (API Layer)
+            → Durable Object (Project Session Manager)
+                → Cloudflare R2 (Persistent Storage)
+                → External AI API
+                → Expo Snack API
+
+
+3. COMPONENT RESPONSIBILITIES
+-------------------------------------------
+
+3.1 Client Browser (Frontend)
+The frontend is responsible for:
+- Rendering the user interface
+- Displaying multi-file project explorer
+- Managing Monaco code editor
+- Handling active file state
+- Managing WebSocket connection lifecycle
+- Debouncing file edits (1–2 seconds)
+- Embedding Expo Snack iframe
+- Generating QR codes for mobile preview
+
+The frontend does NOT:
+- Call the AI API directly
+- Store secret API keys
+- Handle persistence logic
+
+All backend communication is routed through Cloudflare Workers.
+
+
+3.2 Cloudflare Global Edge
+Cloudflare Global Edge acts as:
+- Request router
+- WebSocket upgrade handler
+- Serverless execution environment
+
+Requests are executed at the nearest edge location for reduced latency.
+There are no persistent server instances.
+
+
+3.3 Cloudflare Worker (API Layer)
+The Worker is stateless and handles:
+- HTTP API endpoints
+- Prompt validation
+- AI API orchestration
+- Initial project creation
+- Routing WebSocket upgrades
+- Security enforcement
+- Rate limiting
+
+The Worker does NOT maintain project memory.
+It delegates state management to Durable Objects.
+
+
+3.4 Durable Object (Per Project Session Manager)
+Each project session is managed by a single Durable Object instance.
+
+Responsibilities:
+- Maintain in-memory file tree
+- Handle WebSocket messages
+- Apply file updates
+- Persist file changes to R2
+- Synchronize project with Expo Snack
+- Manage preview lifecycle
+- Handle session lifecycle transitions
+
+Each project has one isolated Durable Object instance.
+
+
+3.5 Cloudflare R2 (Object Storage)
+R2 stores all project files persistently.
+
+Storage Structure:
+bucket/
+  userId/
+    projectId/
+      App.js
+      components/Header.js
+      screens/Home.js
+
+Each file is stored individually.
+Durable Object loads files from R2 during hydration.
+R2 ensures data durability and crash recovery.
+
+
+3.6 External AI Inference API
+The AI API generates the complete multi-file Expo project in strict JSON format.
+
+Expected Output Format:
+{
+  "App.js": "...",
+  "package.json": "...",
+  "app.json": "...",
+  "components/Header.js": "...",
+  "screens/Home.js": "..."
+}
+
+Rules:
+- Valid JSON only
+- No markdown formatting
+- No explanatory text
+- Keys must be relative file paths
+
+The Worker validates the AI response before initializing a project.
+
+
+3.7 Expo Snack API
+Expo Snack provides:
+- React Native bundling
+- React Native Web rendering
+- QR code mobile preview
+- Live preview rebuilds
+
+Durable Object sends the complete file tree to Snack.
+Snack returns:
+- snackId
+- preview URL
+
+Frontend embeds preview using iframe.
+
+
+4. PROJECT GENERATION FLOW
+-------------------------------------------
+Step 1:
+User enters prompt in browser.
+
+Step 2:
+Frontend sends POST /generate request to Worker.
+
+Step 3:
+Worker:
+- Validates input
+- Calls AI API
+- Receives structured JSON project
+
+Step 4:
+Worker:
+- Generates projectId
+- Initializes Durable Object instance
+
+Step 5:
+Durable Object:
+- Stores file tree in memory
+- Writes all files to R2
+- Sends full file tree to Expo Snack
+
+Step 6:
+Snack returns snackId.
+
+Step 7:
+Frontend receives preview URL and loads iframe.
+
+Project becomes active.
+
+
+5. REAL-TIME FILE UPDATE FLOW
+-------------------------------------------
+Step 1:
+User edits file in Monaco Editor.
+
+Step 2:
+Frontend debounces update (1–2 seconds).
+
+Step 3:
+Frontend sends WebSocket message:
+
+{
+  "type": "update_file",
+  "path": "components/Header.js",
+  "content": "updated code"
+}
+
+Step 4:
+Durable Object:
+- Updates in-memory file tree
+- Writes file to R2
+- Sends updated full tree to Snack
+
+Step 5:
+Snack rebuilds project.
+
+Step 6:
+Durable Object sends:
+{
+  "type": "preview_ready",
+  "snackId": "..."
+}
+
+Step 7:
+Frontend refreshes iframe.
+
+Live preview updated.
+
+
+6. DURABLE OBJECT INTERNAL LIFECYCLE
+-------------------------------------------
+States:
+1. Initial / Idle
+2. Hydrating (loading files from R2)
+3. Active / Ready
+4. Processing Update
+5. Persistence
+6. Hibernation (after inactivity)
+
+Memory is temporary.
+R2 is permanent.
+
+If Durable Object shuts down:
+It rehydrates state from R2 upon next request.
+
+
+7. DATA MODEL STRUCTURE
+-------------------------------------------
+
+User:
+- id
+- email
+- api_key
+
+Project:
+- id
+- user_id
+- name
+- created_at
+- last_modified
+- snack_id
+
+File:
+- id
+- project_id
+- path
+- content_hash
+
+Session:
+- session_id
+- project_id
+- active_socket_count
+
+
+8. SCALABILITY DESIGN
+-------------------------------------------
+- Workers scale automatically per request.
+- Durable Objects isolate state per project.
+- R2 provides horizontally scalable storage.
+- AI API handles heavy compute externally.
+- No manual infrastructure scaling required.
+
+
+9. SECURITY DESIGN
+-------------------------------------------
+- AI API keys stored securely in Worker secrets.
+- Frontend never receives API keys.
+- Prompt input validation enforced.
+- File paths sanitized.
+- WebSocket session validation applied.
+- Rate limiting enforced at Worker level.
+
+
+10. FAILURE RECOVERY
+-------------------------------------------
+Worker failure:
+- No state loss (stateless layer).
+
+Durable Object crash:
+- Rehydrate from R2.
+
+AI API failure:
+- Error returned to frontend.
+
+WebSocket disconnection:
+- Client may reconnect to same Durable Object.
+
+Snack update failure:
+- Retry logic triggered.
+
+
+11. DESIGN PRINCIPLES
+-------------------------------------------
+- Serverless-first architecture
+- Edge-native execution
+- Stateless API layer
+- Stateful session layer
+- Object-based persistence
+- Event-driven updates
+- Debounced real-time synchronization
+
+
+12. SYSTEM STRENGTHS
+-------------------------------------------
+- Fully serverless
+- Globally distributed
+- Automatically scalable
+- Per-project isolation
+- Multi-file IDE architecture
+- Persistent object storage
+- Real-time preview
+- AI-assisted code generation
+
+END OF DOCUMENT

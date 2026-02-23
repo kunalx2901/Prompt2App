@@ -1,0 +1,165 @@
+================================================================================
+TECHNICAL DESIGN DOCUMENT: PROMPT2APP
+AI-Powered Multi-File Mobile App Builder
+================================================================================
+Author: Senior Cloud Architect & Distributed Systems Engineer
+Date: February 23, 2026
+Status: FINAL DESIGN (Engineering Review Ready)
+
+--------------------------------------------------------------------------------
+1. INTRODUCTION
+--------------------------------------------------------------------------------
+
+1.1 Purpose
+The purpose of this document is to specify the technical architecture for 
+Prompt2App, a serverless, edge-native platform designed to bridge the gap between 
+natural language requirements and functional mobile application prototypes 
+using React Native (Expo).
+
+1.2 Scope
+This document covers the end-to-end lifecycle: AI-driven code generation, 
+state management via Cloudflare Durable Objects, object storage in R2, 
+and real-time synchronization with the Expo Snack API.
+
+1.3 Definitions
+- DO (Durable Object): Cloudflare class providing low-latency state and 
+  coordination.
+- R2: Cloudflare’s S3-compatible, egress-free object storage.
+- Worker: A serverless execution context running at the network edge.
+- HMR: Hot Module Replacement (simulated via WebSocket refreshes).
+
+1.4 Assumptions
+- AI model supports high-fidelity structured JSON output.
+- Projects fit within Durable Object memory limits (~128MB).
+- Users possess modern browsers supporting WebSockets and ES6+.
+
+--------------------------------------------------------------------------------
+2. HIGH-LEVEL ARCHITECTURE
+--------------------------------------------------------------------------------
+
+2.1 Component Diagram (Logical View)
+
+[ Client Browser ] <---(HTTPS/WS)---> [ Cloudflare Global Edge ]
+                                            |
+        ____________________________________|____________________________________
+       |                                    |                                    |
+[ React/Monaco UI ]             [ Cloudflare Worker API ]             [ Durable Object ]
+       |                                    |                         (Session & State)
+       |                          __________|__________                         |
+       |                         |                     |                        |
+[ Expo Snack API ]      [ AI Inference API ]      [ Cloudflare R2 ]     [ WebSocket Hub ]
+
+2.2 Technology Stack Justification
+- Cloudflare Workers: Sub-millisecond cold starts; executes at the edge.
+- Durable Objects: Ensures a single "source of truth" in memory for the 
+  file system during an active editing session.
+- Monaco Editor: Provides VS Code-like LSP support for React Native.
+- Expo Snack: Offloads mobile bundling and environment simulation.
+
+--------------------------------------------------------------------------------
+3. DETAILED COMPONENT DESIGN
+--------------------------------------------------------------------------------
+
+3.1 Frontend Design
+- State Management: Local React state handles the active file buffer; 
+  global state syncs with the Durable Object via WebSockets.
+- Debounce Logic: 800ms debounce on file changes to minimize network overhead.
+
+3.2 WebSocket Communication Design
+- Persistent connection established between Client and Durable Object (DO).
+- DO handles broadcasting and internal logic for storage syncing.
+
+3.3 Durable Object Lifecycle
+1. Instantiation: Triggered by unique 'projectId'.
+2. Hydration: DO fetches file tree from R2 into private memory on first request.
+3. Active Session: Manages 'WRITE_FILE' and 'READ_FILE' operations.
+4. Hibernation: After inactivity, DO persists state to R2 and shuts down.
+
+--------------------------------------------------------------------------------
+4. DATA FLOW DESIGN
+--------------------------------------------------------------------------------
+
+4.1 Project Generation Flow
+1. User submits natural language prompt.
+2. Worker invokes AI API (Gemini/HuggingFace).
+3. AI returns code structured as a JSON file map.
+4. Worker sends map to Durable Object; DO writes to R2 and acknowledges Client.
+
+4.2 Preview Refresh Flow
+1. User edits code in Monaco Editor.
+2. 'onContentChange' triggers debounced WebSocket 'UPDATE_FILE' message.
+3. DO updates in-memory virtual file system (VFS).
+4. DO constructs a new "Snack Session" payload and pushes to Expo Snack API.
+5. Frontend receives 'PREVIEW_READY' and reloads iframe/QR code.
+
+--------------------------------------------------------------------------------
+5. DATA MODEL DESIGN
+--------------------------------------------------------------------------------
+
+5.1 R2 Object Key Structure
+- Pattern: user_{id}/project_{id}/v1/files.json
+- Assets: user_{id}/project_{id}/assets/{asset_name}
+
+5.2 Durable Object Memory Structure
+interface ProjectState {
+  projectId: string;
+  files: Map<string, string>; // Key: Path, Value: Content
+  lastSaved: number;
+  snackId?: string;
+}
+
+--------------------------------------------------------------------------------
+6. WEBSOCKET PROTOCOL DESIGN
+--------------------------------------------------------------------------------
+
+6.1 Message Formats
+- UPDATE_FILE: { "type": "UPDATE_FILE", "path": "App.js", "content": "..." }
+- SYNC_COMPLETE: { "type": "SYNC_COMPLETE", "timestamp": 1708684510 }
+
+6.2 Error Recovery
+- Client implements Exponential Backoff Reconnection.
+- On reconnect, client sends buffer checksum to verify synchronization.
+
+--------------------------------------------------------------------------------
+7. SCALABILITY & PERFORMANCE
+--------------------------------------------------------------------------------
+- Horizontal Scaling: DO instances are distributed globally per project ID.
+- R2 Performance: Used only for persistence (cold path); DO handles hot path.
+- AI Latency: Worker streams responses to the UI for perceived speed.
+
+--------------------------------------------------------------------------------
+8. SECURITY DESIGN
+--------------------------------------------------------------------------------
+- JWT Validation: All Worker requests must be authenticated.
+- Data Isolation: DO namespaces and R2 key partitioning prevent cross-tenant access.
+- Input Validation: Strict JSON schema validation for AI-generated code.
+
+--------------------------------------------------------------------------------
+9. FAILURE HANDLING
+--------------------------------------------------------------------------------
+- Worker Restart: Stateless; handled by Cloudflare global routing.
+- DO Crash: state.blockConcurrencyWhile() ensures R2 hydration before resume.
+- AI Timeout: 30s gateway timeout with frontend retry logic.
+
+--------------------------------------------------------------------------------
+10. MONITORING & OBSERVABILITY
+--------------------------------------------------------------------------------
+- Logging: Cloudflare Logpush to external ELK/Sentry.
+- Metrics: Custom counters for generation_time and active_sessions.
+
+--------------------------------------------------------------------------------
+11. LIMITATIONS & FUTURE ENHANCEMENTS
+--------------------------------------------------------------------------------
+- Collaboration: Currently single-user (DO locking). Future: Operational Transforms.
+- Versioning: Planned integration for Git/GitHub export.
+- AI Efficiency: Moving to diff-based updates to reduce token usage.
+
+--------------------------------------------------------------------------------
+TECHNICAL CONCLUSION
+--------------------------------------------------------------------------------
+The Prompt2App architecture leverages the Stateful Edge pattern. By utilizing 
+Durable Objects for low-latency coordination and R2 for egress-free storage, 
+the system achieves the performance of a local IDE within a serverless 
+environment. The design is highly scalable, cost-efficient, and optimized for 
+modern mobile development workflows.
+================================================================================

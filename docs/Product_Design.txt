@@ -1,0 +1,271 @@
+
+PRODUCT REQUIREMENT DOCUMENT (PRD)
+==================================
+
+Project Title:
+Prompt2App: AI-Powered Multi-File Mobile App Builder with Real-Time Preview
+
+------------------------------------------------------------
+1. EXECUTIVE SUMMARY
+------------------------------------------------------------
+Prompt2App is a web-based AI-powered development platform that enables users
+to generate, edit, and preview complete multi-file React Native (Expo)
+mobile applications using natural language prompts.
+
+The system provides:
+- AI-driven project generation
+- Multi-file code editing
+- Real-time preview synchronization
+- QR-based mobile preview
+- Persistent cloud storage
+- Edge-based serverless architecture
+
+The platform leverages Cloudflare Workers, Durable Objects,
+Cloudflare R2, and Expo Snack for scalable, low-latency orchestration.
+
+------------------------------------------------------------
+2. PROBLEM STATEMENT
+------------------------------------------------------------
+Mobile application development requires:
+- Knowledge of React Native
+- Local environment setup
+- Expo configuration
+- File structure management
+- Preview tooling
+
+Non-developers and early-stage developers struggle with:
+- Environment configuration
+- Project scaffolding
+- Code organization
+- Preview deployment
+
+There is a need for a fully web-based AI-powered system
+that generates complete multi-file Expo projects and provides
+live preview without requiring local setup.
+
+------------------------------------------------------------
+3. PRODUCT GOALS
+------------------------------------------------------------
+Primary Goals:
+1. Generate complete multi-file Expo projects from prompts.
+2. Provide in-browser multi-file editing environment.
+3. Enable real-time preview updates.
+4. Allow QR-based mobile preview via Expo Go.
+5. Persist projects in cloud object storage.
+6. Use fully serverless architecture.
+
+Secondary Goals:
+1. Maintain consistent AI prompt context.
+2. Provide scalable architecture.
+3. Minimize infrastructure complexity.
+4. Keep system fully free-tier compatible.
+
+------------------------------------------------------------
+4. FUNCTIONAL REQUIREMENTS
+------------------------------------------------------------
+
+FR-1: Prompt-Based Generation
+- User can enter natural language prompt.
+- System generates complete Expo project.
+- Project includes:
+  - App.js
+  - package.json
+  - app.json
+  - components/*
+  - screens/*
+  - utils/*
+
+FR-2: Multi-File Editor
+- File explorer with folder hierarchy.
+- Create file.
+- Delete file.
+- Rename file.
+- Edit file.
+- Monaco Editor integration.
+- Single active editor session per project.
+
+FR-3: Real-Time Preview
+- Preview updates after file modification.
+- Updates debounced (1–2 seconds).
+- Preview rendered inside iframe using Expo Snack.
+- QR code generated for Expo Go.
+
+FR-4: Persistent Storage
+- All project files stored individually in object storage.
+- File-level updates persisted.
+- Projects retrievable after session ends.
+
+FR-5: WebSocket Communication
+- Real-time file updates sent via WebSocket.
+- WebSocket connected to project-specific session.
+- Durable Object maintains in-memory file tree.
+
+FR-6: AI Code Generation
+- AI returns complete multi-file JSON response.
+- Response includes file paths as keys.
+- System validates AI output format before saving.
+
+------------------------------------------------------------
+5. NON-FUNCTIONAL REQUIREMENTS
+------------------------------------------------------------
+
+NFR-1: Scalability
+- System scales per request using serverless architecture.
+- No fixed server instances.
+
+NFR-2: Latency
+- Preview update latency less than 3 seconds.
+
+NFR-3: Reliability
+- File changes persist to R2 before preview update.
+- No data loss during session.
+
+NFR-4: Security
+- AI API keys not exposed to frontend.
+- All AI calls routed through Worker.
+- Input prompt length validated.
+
+NFR-5: Cost Efficiency
+- Entire system operates within free-tier limits.
+
+------------------------------------------------------------
+6. SYSTEM ARCHITECTURE
+------------------------------------------------------------
+
+High-Level Flow:
+
+Frontend (React + Monaco)
+        ↓
+WebSocket
+        ↓
+Cloudflare Worker
+        ↓
+Durable Object (Per Project Session)
+        ↓
+Cloudflare R2 (Object Storage)
+        ↓
+External AI API
+        ↓
+Expo Snack (Preview Runtime)
+
+Component Responsibilities:
+
+Frontend:
+- UI rendering
+- File explorer
+- Editor
+- WebSocket handling
+- Debounce logic
+- Iframe preview
+- QR generation
+
+Cloudflare Worker:
+- API routing
+- AI orchestration
+- WebSocket upgrade handling
+- Security enforcement
+- Rate limiting
+
+Durable Object:
+- Per-project in-memory file tree
+- WebSocket session management
+- File update coordination
+- R2 persistence
+- Snack synchronization
+
+Cloudflare R2:
+- Persistent file storage
+- Project version storage (optional)
+
+External AI API:
+- Generates structured JSON project
+- Maintains consistent format
+
+Expo Snack:
+- Runtime bundling
+- React Native Web preview
+- QR generation
+- Live rebuild on file updates
+
+------------------------------------------------------------
+7. AI OUTPUT SPECIFICATION
+------------------------------------------------------------
+
+AI must return strict JSON format:
+
+{
+  "App.js": "...",
+  "package.json": "...",
+  "app.json": "...",
+  "components/Header.js": "...",
+  "screens/Home.js": "..."
+}
+
+Rules:
+- No explanations.
+- No markdown.
+- No comments outside JSON.
+- Only valid JSON.
+- All file paths must be relative.
+
+------------------------------------------------------------
+8. DATA MODEL
+------------------------------------------------------------
+
+Project Metadata:
+
+{
+  "projectId": "",
+  "userId": "",
+  "createdAt": "",
+  "updatedAt": "",
+  "snackUrl": ""
+}
+
+File Storage (R2 Key Format):
+
+bucket/userId/projectId/path/to/file.js
+
+------------------------------------------------------------
+9. CONSTRAINTS
+------------------------------------------------------------
+- Single editor session per project.
+- No collaborative editing.
+- No background job queues.
+- No container orchestration.
+- No local code execution.
+
+------------------------------------------------------------
+10. FUTURE SCOPE
+------------------------------------------------------------
+- Version control
+- AI-assisted file-level modification
+- Collaborative editing
+- Template library
+- APK export
+- Authentication system
+- Usage analytics
+
+------------------------------------------------------------
+11. TECHNICAL STACK SUMMARY
+------------------------------------------------------------
+
+Frontend:
+- React (Vite)
+- Tailwind CSS
+- Monaco Editor
+- WebSocket API
+- QR code library
+
+Backend:
+- Cloudflare Workers
+- Durable Objects
+- Cloudflare R2
+
+External Services:
+- AI API (Gemini / HuggingFace or equivalent)
+- Expo Snack
+
+------------------------------------------------------------
+END OF DOCUMENT
+------------------------------------------------------------
