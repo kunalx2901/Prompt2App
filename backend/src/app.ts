@@ -1,11 +1,12 @@
 import { Hono, Context } from 'hono';
 import type { Bindings } from "./types/bindings";
-
+import { errorHandler } from './middleware/errorHandler';
 import { healthRoute } from "./routes/health";
 import { createSession } from "./routes/session";
 import { sendMessage } from "./routes/message";
 
 const app = new Hono<{ Bindings: Bindings }>();
+app.use("*", errorHandler);
 
 app.get("/health", healthRoute);
 app.post("/session", createSession);
