@@ -4,6 +4,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { healthRoute } from "./routes/health";
 import { createSession } from "./routes/session";
 import { sendMessage } from "./routes/message";
+import {testRoute} from "./routes/test-db";
 
 const app = new Hono<{ Bindings: Bindings }>();
 app.use("*", errorHandler);
@@ -11,6 +12,7 @@ app.use("*", errorHandler);
 app.get("/health", healthRoute);
 app.post("/session", createSession);
 app.post("/message", sendMessage);
+app.route('/', testRoute)
 
 // test route to check if durable object is working
 app.get("/do", async (c: Context<{ Bindings: Bindings }>) => {
