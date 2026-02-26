@@ -10,6 +10,24 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String
+  name      String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects  Project[]
 }
+
+model Project {                                                                                                                                                                       
+    id          String   @id @default(uuid())                                                                                                                                           
+    name        String                                                                                                                                                                  
+    description String?                                                                                                                                                                 
+    userId      String                                                                                                                                                                  
+    snackId     String?  // Expo Snack ID for preview                                                                                                                                   
+    createdAt   DateTime @default(now())                                                                                                                                                
+    updatedAt   DateTime @updatedAt                                                                                                                                                     
+                                                                                                                                                                                        
+    // Relationships                                                                                                                                                                    
+    user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)                                                                                               
+                                                                                                                                                                                        
+    @@index([userId])                                                                                                                                                                   
+}   
