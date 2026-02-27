@@ -22,5 +22,12 @@
       "tag": "v1",
       "new_classes": ["MyDurableObject"]
     }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "PROMPT2APP_STORAGE",
+      "bucket_name": "prompt2app"
+    }
   ]
 }

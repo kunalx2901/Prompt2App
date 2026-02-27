@@ -1,13 +1,14 @@
-  import { Hono, Context } from 'hono';                                                                                                                                                 
-  import type { Bindings } from "./types/bindings";                                                                                                                                     
-  import { errorHandler } from './middleware/errorHandler';                                                                                                                             
-  import { healthRoute } from "./routes/health";                                                                                                                                        
-  import { createSession } from "./routes/session";                                                                                                                                     
-  import { sendMessage } from "./routes/message";                                                                                                                                       
-  import { testRoute } from "./routes/test-db";                                                                                                                                         
-  import { protectedRoutes } from "./routes/protected";                                                                                                                                 
+import { Hono, Context } from 'hono';                                                                                                                                                 
+import type { Bindings } from "./types/bindings";                                                                                                                                     
+import { errorHandler } from './middleware/errorHandler';                                                                                                                             
+import { healthRoute } from "./routes/health";                                                                                                                                        
+import { createSession } from "./routes/session";                                                                                                                                     
+import { sendMessage } from "./routes/message";                                                                                                                                       
+import { testRoute } from "./routes/test-db";                                                                                                                                         
+import { protectedRoutes } from "./routes/protected";                                                                                                                                 
 import { clerkTest } from './routes/clerk-test';
 import { projects } from './routes/project';
+import files from './routes/files';
                                                                                                                                                                                         
   const app = new Hono<{ Bindings: Bindings }>();                                                                                                                                       
   app.use("*", errorHandler);                                                                                                                                                           
@@ -20,11 +21,8 @@ import { projects } from './routes/project';
     // TEMPORARY: Clerk test routes (REMOVE IN PRODUCTION)                                                                                                                                
   app.route('/clerk', clerkTest); 
   
-  app.route('/api', protectedRoutes);
-  app.route('api/projects', projects);
-                                                                                                                                                                                        
-  // Protected routes (require Clerk authentication)                                                                                                                                    
-  app.route('/api', protectedRoutes);                                                                                                                                                   
+  app.route('/api/projects', projects);
+  app.route('/api/files', files); // Importing files route with require to avoid circular dependency issues
                                                                                                                                                                                         
   // Durable Object test route                                                                                                                                                          
   app.get("/do", async (c: Context<{ Bindings: Bindings }>) => {                                                                                                                        

@@ -26,6 +26,8 @@ services:
     command: sh -c "npm install && npx wrangler dev --ip 0.0.0.0 --port 8787 --local"
     environment:
       - CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
+    env_file:
+      - ./backend/.env
 
 volumes:
   frontend_node_modules:

@@ -4,96 +4,60 @@ import { Hono } from 'hono';
   import { clerkAuth } from '../middleware/clerkAuth';                                                                                                                                  
   import type { Bindings } from '../types/bindings';                                                                                                                                    
                                                                                                                                                                                         
-  const projects = new Hono<{ Bindings: Bindings }>(); 
-  
-//   test route to verify auth and DB connection
-projects.post('/test-create', async (c) => {                                                                                                                                          
-    try {                                                                                                                                                                               
-      const { name, description, userId } = await c.req.json();                                                                                                                         
-                                                                                                                                                                                        
-      if (!name || !userId) {                                                                                                                                                           
-        return c.json({ error: 'name and userId required' }, 400);                                                                                                                      
-      }                                                                                                                                                                                 
-                                                                                                                                                                                        
-      const prisma = new PrismaClient({                                                                                                                                                 
-        datasourceUrl: c.env.DATABASE_URL,                                                                                                                                              
-      }).$extends(withAccelerate());                                                                                                                                                    
-                                                                                                                                                                                        
-      const project = await prisma.project.create({                                                                                                                                     
-        data: {                                                                                                                                                                         
-          name: name.trim(),                                                                                                                                                            
-          description: description?.trim() || null,                                                                                                                                     
-          userId: userId,                                                                                                                                                               
-        },                                                                                                                                                                              
-      });                                                                                                                                                                               
-                                                                                                                                                                                        
-      return c.json({                                                                                                                                                                   
-        success: true,                                                                                                                                                                  
-        message: 'Test project created',                                                                                                                                                
-        project: {                                                                                                                                                                      
-          id: project.id,                                                                                                                                                               
-          name: project.name,                                                                                                                                                           
-          description: project.description,                                                                                                                                             
-          userId: project.userId,                                                                                                                                                       
-        },                                                                                                                                                                              
-      }, 201);                                                                                                                                                                          
-                                                                                                                                                                                        
-    } catch (error) {                                                                                                                                                                   
-      console.error('Test create error:', error);                                                                                                                                       
-      return c.json({ error: 'Failed to create test project' }, 500);                                                                                                                   
-    }                                                                                                                                                                                   
-  });                  
+  const projects = new Hono<{ Bindings: Bindings }>();                   
                                                                                                                                                                                         
   // Apply Clerk auth to all project routes                                                                                                                                             
   projects.use('*', clerkAuth);                                                                                                                                                         
                                                                                                                                                                                         
   // Create a new project                                                                                                                                                               
-  projects.post('/', async (c) => {                                                                                                                                                     
-    try {                                                                                                                                                                               
-      const user = c.get('user');                                                                                                                                                       
-      const { name, description } = await c.req.json();                                                                                                                                 
-                                                                                                                                                                                        
-      // Validation                                                                                                                                                                     
-      if (!name || name.trim().length === 0) {                                                                                                                                          
-        return c.json({ error: 'Project name is required' }, 400);                                                                                                                      
-      }                                                                                                                                                                                 
-                                                                                                                                                                                        
-      if (name.length > 100) {                                                                                                                                                          
-        return c.json({ error: 'Project name must be less than 100 characters' }, 400);                                                                                                 
-      }                                                                                                                                                                                 
-                                                                                                                                                                                        
-      // Initialize Prisma                                                                                                                                                              
-      const prisma = new PrismaClient({                                                                                                                                                 
-        datasourceUrl: c.env.DATABASE_URL,                                                                                                                                              
-      }).$extends(withAccelerate());                                                                                                                                                    
-                                                                                                                                                                                        
-      // Create project                                                                                                                                                                 
-      const project = await prisma.project.create({                                                                                                                                     
-        data: {                                                                                                                                                                         
-          name: name.trim(),                                                                                                                                                            
-          description: description?.trim() || null,                                                                                                                                     
-          userId: user.id,                                                                                                                                                              
-        },                                                                                                                                                                              
-      });                                                                                                                                                                               
-                                                                                                                                                                                        
-      return c.json({                                                                                                                                                                   
-        success: true,                                                                                                                                                                  
-        message: 'Project created successfully',                                                                                                                                        
-        project: {                                                                                                                                                                      
-          id: project.id,                                                                                                                                                               
-          name: project.name,                                                                                                                                                           
-          description: project.description,                                                                                                                                             
-          userId: project.userId,                                                                                                                                                       
-          createdAt: project.createdAt,                                                                                                                                                 
-          updatedAt: project.updatedAt,                                                                                                                                                 
-        },                                                                                                                                                                              
-      }, 201);                                                                                                                                                                          
-                                                                                                                                                                                        
-    } catch (error) {                                                                                                                                                                   
-      console.error('Create project error:', error);                                                                                                                                    
-      return c.json({ error: 'Failed to create project' }, 500);                                                                                                                        
-    }                                                                                                                                                                                   
-  });                                                                                                                                                                                   
+  projects.post('/', async (c) => {
+  try {
+    const user = c.get('user');
+    const { name, description } = await c.req.json();
+    
+
+    // Validation
+    if (!name || name.trim().length === 0) {
+      return c.json({ error: 'Project name is required' }, 400);
+    }
+
+    if (name.length > 100) {
+      return c.json({ error: 'Project name must be less than 100 characters' }, 400);
+    }
+
+    const prisma = new PrismaClient({
+      datasourceUrl: c.env.DATABASE_URL,
+    }).$extends(withAccelerate());
+
+    await prisma.user.upsert({
+        where: { id: user.id },
+        update: {},
+        create: {
+            id: user.id,
+            email: `${user.id}@example.com`,
+        },  
+    });
+
+    // ✅ Create project (NO inner try block)
+    const project = await prisma.project.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null,
+        userId: user.id,
+      },
+    });
+    
+    return c.json({
+      success: true,
+      message: 'Project created successfully',
+      project,
+    }, 201);
+
+  } catch (error) {
+    console.error('Create project error:', error);
+    return c.json({ error: 'Failed to create project' }, 500);
+  }
+});                                                                                          
                                                                                                                                                                                         
   // Get all projects for the authenticated user                                                                                                                                        
   projects.get('/', async (c) => {                                                                                                                                                      
