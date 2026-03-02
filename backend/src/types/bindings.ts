@@ -3,5 +3,5 @@
     DATABASE_URL: string;                                                                                                                                                               
     CLERK_SECRET_KEY: string;                                                                                                                                                           
     CLERK_PUBLISHABLE_KEY: string;  
-    PROMPT2APP_STORAGE: R2Bucket;                                                                                                                                                    
+    PROMPT2APP_STORAGE_BINDINGS: R2Bucket;                                                                                                                                                    
   };

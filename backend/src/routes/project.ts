@@ -1,4 +1,4 @@
-import { Hono } from 'hono';                                                                                                                                                          
+import { Hono, Context } from 'hono';                                                                                                                                                          
   import { PrismaClient } from '@prisma/client/edge';                                                                                                                                   
   import { withAccelerate } from '@prisma/extension-accelerate';                                                                                                                        
   import { clerkAuth } from '../middleware/clerkAuth';                                                                                                                                  
@@ -10,7 +10,7 @@ import { Hono } from 'hono';
   projects.use('*', clerkAuth);                                                                                                                                                         
                                                                                                                                                                                         
   // Create a new project                                                                                                                                                               
-  projects.post('/', async (c) => {
+  projects.post('/', async (c: Context<{ Bindings: Bindings }>) => {
   try {
     const user = c.get('user');
     const { name, description } = await c.req.json();
@@ -46,7 +46,7 @@ import { Hono } from 'hono';
         userId: user.id,
       },
     });
-    
+
     return c.json({
       success: true,
       message: 'Project created successfully',
@@ -60,7 +60,7 @@ import { Hono } from 'hono';
 });                                                                                          
                                                                                                                                                                                         
   // Get all projects for the authenticated user                                                                                                                                        
-  projects.get('/', async (c) => {                                                                                                                                                      
+  projects.get('/', async (c: Context<{ Bindings: Bindings }>) => {                                                                                                                                                      
     try {                                                                                                                                                                               
       const user = c.get('user');                                                                                                                                                       
                                                                                                                                                                                         
@@ -97,7 +97,7 @@ import { Hono } from 'hono';
   });                                                                                                                                                                                   
                                                                                                                                                                                         
   // Get a single project by ID                                                                                                                                                         
-  projects.get('/:id', async (c) => {                                                                                                                                                   
+  projects.get('/:id', async (c: Context<{ Bindings: Bindings }>) => {                                                                                                                                                   
     try {                                                                                                                                                                               
       const user = c.get('user');                                                                                                                                                       
       const projectId = c.req.param('id');                                                                                                                                              
@@ -137,7 +137,7 @@ import { Hono } from 'hono';
   });                                                                                                                                                                                   
                                                                                                                                                                                         
   // Update a project                                                                                                                                                                   
-  projects.put('/:id', async (c) => {                                                                                                                                                   
+  projects.put('/:id', async (c: Context<{ Bindings: Bindings }>) => {                                                                                                                                                   
     try {                                                                                                                                                                               
       const user = c.get('user');                                                                                                                                                       
       const projectId = c.req.param('id');                                                                                                                                              
@@ -192,7 +192,7 @@ import { Hono } from 'hono';
   });                                                                                                                                                                                   
                                                                                                                                                                                         
   // Delete a project                                                                                                                                                                   
-  projects.delete('/:id', async (c) => {                                                                                                                                                
+  projects.delete('/:id', async (c: Context<{ Bindings: Bindings }>) => {                                                                                                                                                
     try {                                                                                                                                                                               
       const user = c.get('user');                                                                                                                                                       
       const projectId = c.req.param('id');                                                                                                                                              
