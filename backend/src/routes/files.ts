@@ -17,9 +17,9 @@ files.post('/bulk/:projectId', async (c) => {
   const { projectId } = c.req.param();
   const fileMap = await c.req.json();
 
-  console.log("ENV OBJECT:", c.env);
-  console.log("R2 VALUE:", c.env.PROMPT2APP_STORAGE);
-  console.log("TYPE:", typeof c.env.PROMPT2APP_STORAGE);
+  // console.log("ENV OBJECT:", c.env);
+  // console.log("R2 VALUE:", c.env.PROMPT2APP_STORAGE);
+  // console.log("TYPE:", typeof c.env.PROMPT2APP_STORAGE);
   const bucket = c.env.PROMPT2APP_STORAGE;
 
   for (const [path, content] of Object.entries(fileMap)) {

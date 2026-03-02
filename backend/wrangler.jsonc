@@ -5,8 +5,7 @@
 
   "vars":{
     "DATABASE_URL": "prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqd3RfaWQiOjEsInNlY3VyZV9rZXkiOiJza195NE9JRDU5eUpzeFpINkxTOHBnWGUiLCJhcGlfa2V5IjoiMDFLSkEzQlIzVjc5WEEwOVJHMVE2ODRaREciLCJ0ZW5hbnRfaWQiOiI0OWZjNTE4Y2IwNDk0NWM5YzdjZGJmYTBlMjY0ZTVkMDBlYmRmMDExMTU5YjkyYzkyZmRkZDUxMTYzYzI2NGYzIiwiaW50ZXJuYWxfc2VjcmV0IjoiYjY5ZDI3MTItYmRkNS00NzM3LTgxNTYtMGZkOTg5Y2UyNzA5In0._DmxQFn78iraFEV_3xYSjciNc1aHl7eh6PNfHasfIrY",
-    "JWT_SECRET_KEY":"mysecretkey",
-    "PROMPT2APP_STORAGE":"https://2f8f38bfa64faa1e1148bf5aca437027.r2.cloudflarestorage.com/prompt2app"
+    "JWT_SECRET_KEY":"mysecretkey"
   },
 
   "durable_objects": {
@@ -25,6 +24,7 @@
     }
   ],
 
+  "account_id": "2f8f38bfa64faa1e1148bf5aca437027",
   "r2_buckets": [
     {
       "binding": "PROMPT2APP_STORAGE",
