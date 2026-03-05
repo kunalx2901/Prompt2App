@@ -4,6 +4,7 @@ import {clerkAuth} from '../middleware/clerkAuth';
 import { projects } from './project';
 import files from './files';
 import { Bindings } from '../types/bindings';
+import generate from "./generate"
 
 const protectedRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -15,5 +16,8 @@ protectedRoutes.route('/projects', projects);
 
 // 📁 File routes
 protectedRoutes.route('/files', files);
+
+// 🤖 AI generation route
+protectedRoutes.route("/generate", generate)
 
 export { protectedRoutes };
