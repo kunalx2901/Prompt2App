@@ -5,6 +5,8 @@ import { projects } from './project';
 import files from './files';
 import { Bindings } from '../types/bindings';
 import generate from "./generate"
+import projectTree from './projectTree';
+import fileContent from './fileContent';
 
 const protectedRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -18,6 +20,12 @@ protectedRoutes.route('/projects', projects);
 protectedRoutes.route('/files', files);
 
 // 🤖 AI generation route
-protectedRoutes.route("/generate", generate)
+protectedRoutes.route("/generate", generate);
+
+// for project tree
+protectedRoutes.route('/projects', projectTree);
+
+// for viewing the file content
+protectedRoutes.route('/files', fileContent);
 
 export { protectedRoutes };
