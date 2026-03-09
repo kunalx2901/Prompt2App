@@ -84,3 +84,74 @@ ${prompt}
     throw new Error("AI returned invalid JSON");
   }
 };
+
+// to edit the files from the AI
+
+export const editProjectFiles = async (
+  files: Record<string, string>,
+  prompt: string,
+  apiKey: string
+) => {
+
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:8787",
+        "X-Title": "Prompt2App"
+      },
+      body: JSON.stringify({
+        model: "stepfun/step-3.5-flash:free",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert React Native developer. Modify the project files according to the request."
+          },
+          {
+            role: "user",
+            content: `
+Here are the current project files:
+
+${JSON.stringify(files)}
+
+User request:
+${prompt}
+
+Return ONLY JSON in this format:
+
+{
+  "files": {
+    "App.js": "updated code",
+    "screens/LoginScreen.js": "new file code"
+  }
+}
+`
+          }
+        ]
+      })
+    }
+  )
+
+  const data = await response.json()
+
+  console.log("AI EDIT RESPONSE:", data)
+
+  if (!data.choices || !data.choices[0]) {
+    throw new Error("Invalid AI response")
+  }
+
+  let content = data.choices[0].message.content
+
+  content = content
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim()
+
+  const parsed = JSON.parse(content)
+
+  return parsed.files as Record<string, string>
+}
