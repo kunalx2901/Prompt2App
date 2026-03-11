@@ -5,6 +5,7 @@ import { listFiles, getFile, putFile } from "../storage/r2"
 import { editProjectFilesStream } from "../services/ai"
 import { Bindings } from "../types/bindings"
 import { selectRelevantFiles } from "../services/fileSelector"
+import { validateProjectFiles } from "../services/validator"
 
 const edit = new Hono<{ Bindings: Bindings }>()
 
@@ -73,9 +74,11 @@ edit.post("/", async (c) => {
       }
     )
 
+    const validatedFiles = validateProjectFiles(updatedFiles)
+
     await send("status", "AI responded. Updating files...")
 
-    for (const [path, content] of Object.entries(updatedFiles)) {
+    for (const [path, content] of Object.entries(validatedFiles)) {
 
       const key = `${user.id}/${projectId}/files/${path}`
 

@@ -8,6 +8,7 @@ import generate from "./generate"
 import projectTree from './projectTree';
 import fileContent from './fileContent';
 import edit from './edit'
+import preview from './preview';
 
 const protectedRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -31,5 +32,8 @@ protectedRoutes.route('/files', fileContent);
 
 // for editing the the files 
 protectedRoutes.route('/edit', edit);
+
+// for previewing the project 
+protectedRoutes.route('/preview', preview);
 
 export { protectedRoutes };

@@ -4,6 +4,7 @@ import { generateProjectFiles } from "../services/ai";
 import { putFile } from "../storage/r2";
 import { Bindings } from "../types/bindings";
 import { stream } from "hono/streaming";
+import { validateProjectFiles } from "../services/validator"
 
 type GeneratedFiles = {
   files: Record<string, string>;
@@ -30,9 +31,10 @@ generate.post("/", async (c) => {
     ) as GeneratedFiles;
 
     const files = aiResult.files;
+    const validatedFiles = validateProjectFiles(files)
 
     // Stream file names as they appear
-    for (const path of Object.keys(files)) {
+    for (const path of Object.keys(validatedFiles)) {
       await s.write(`event: file\ndata: ${path}\n\n`);
     }
 
