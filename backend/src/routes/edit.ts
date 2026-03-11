@@ -2,8 +2,9 @@ import { Hono } from "hono"
 import { stream } from "hono/streaming"
 import { createPrisma } from "../db/prisma"
 import { listFiles, getFile, putFile } from "../storage/r2"
-import { editProjectFiles } from "../services/ai"
+import { editProjectFilesStream } from "../services/ai"
 import { Bindings } from "../types/bindings"
+import { selectRelevantFiles } from "../services/fileSelector"
 
 const edit = new Hono<{ Bindings: Bindings }>()
 
@@ -39,26 +40,37 @@ edit.post("/", async (c) => {
     await send("status", "Fetching project files from R2...")
 
     const keys = await listFiles(bucket, prefix)
+    const paths = keys.map(k => k.replace(prefix, ""))
+    const relevantFiles = selectRelevantFiles(paths, prompt)
+
+    await send("status", "Selecting relevant files...")
+
+    for (const file of relevantFiles) {
+        await send("file", `Selected ${file}`)
+    }
 
     const files: Record<string, string> = {}
 
-    for (const key of keys) {
+    for (const path of relevantFiles) {
 
-      const path = key.replace(prefix, "")
+        const key = `${user.id}/${projectId}/files/${path}`
 
-      const content = await getFile(bucket, key)
+        const content = await getFile(bucket, key)
 
-      files[path] = content || ""
+        files[path] = content || ""
 
       await send("file", `Loaded ${path}`)
     }
 
     await send("status", "Sending project files to AI...")
 
-    const updatedFiles = await editProjectFiles(
+    const updatedFiles = await editProjectFilesStream(
       files,
       prompt,
-      c.env.OPENROUTER_API_KEY
+      c.env.OPENROUTER_API_KEY,
+      async(token)=>{
+        await send("AI",token)
+      }
     )
 
     await send("status", "AI responded. Updating files...")

@@ -87,10 +87,11 @@ ${prompt}
 
 // to edit the files from the AI
 
-export const editProjectFiles = async (
+export const editProjectFilesStream = async (
   files: Record<string, string>,
   prompt: string,
-  apiKey: string
+  apiKey: string,
+  onToken: (token: string) => Promise<void>
 ) => {
 
   const response = await fetch(
@@ -105,28 +106,28 @@ export const editProjectFiles = async (
       },
       body: JSON.stringify({
         model: "stepfun/step-3.5-flash:free",
+        stream: true,
         messages: [
           {
             role: "system",
             content:
-              "You are an expert React Native developer. Modify the project files according to the request."
+              "You are an expert React Native developer. Always return ONLY valid JSON."
           },
           {
             role: "user",
             content: `
-Here are the current project files:
-
+Project files:
 ${JSON.stringify(files)}
 
 User request:
 ${prompt}
 
-Return ONLY JSON in this format:
+Return JSON format:
 
 {
   "files": {
-    "App.js": "updated code",
-    "screens/LoginScreen.js": "new file code"
+    "App.js": "...",
+    "screens/LoginScreen.js": "..."
   }
 }
 `
@@ -136,22 +137,57 @@ Return ONLY JSON in this format:
     }
   )
 
-  const data = await response.json()
+  const reader = response.body?.getReader()
+  const decoder = new TextDecoder()
 
-  console.log("AI EDIT RESPONSE:", data)
+  let fullContent = ""
 
-  if (!data.choices || !data.choices[0]) {
-    throw new Error("Invalid AI response")
+  while (true) {
+
+    const { done, value } = await reader!.read()
+
+    if (done) break
+
+    const chunk = decoder.decode(value)
+
+    const lines = chunk.split("\n")
+
+    for (const line of lines) {
+
+      if (line.startsWith("data: ")) {
+
+        const data = line.replace("data: ", "").trim()
+
+        if (data === "[DONE]") continue
+
+        try {
+
+          const parsed = JSON.parse(data)
+
+          const token =
+            parsed.choices?.[0]?.delta?.content || ""
+
+          if (token) {
+
+            fullContent += token
+
+            await onToken(token)
+
+          }
+
+        } catch (e) {
+          continue
+        }
+      }
+    }
   }
 
-  let content = data.choices[0].message.content
-
-  content = content
+  const cleaned = fullContent
     .replace(/```json/g, "")
     .replace(/```/g, "")
     .trim()
 
-  const parsed = JSON.parse(content)
+  const parsed = JSON.parse(cleaned)
 
-  return parsed.files as Record<string, string>
+  return parsed.files
 }
