@@ -109,6 +109,9 @@ The backend code expects these values/bindings:
 - `JWT_ISSUER`
 - `JWT_EXPIRES_IN`
 - `OPENROUTER_API_KEY`
+  - This repo uses OpenRouter's chat completions endpoint at `https://openrouter.ai/api/v1/chat/completions`.
+  - The backend is configured to try models such as `qwen/qwen3-coder`, `deepseek/deepseek-chat`, and `meta-llama/llama-3.3-70b-instruct:free`.
+  - If edits do not appear, confirm your API key is valid and not rate-limited.
 - `PROMPT2APP_STORAGE` as an R2 bucket binding
 - `MY_DURABLE_OBJECT` as a Durable Object binding
 
@@ -188,7 +191,7 @@ Use this order after filling `.env`:
 
 ## 6. Frontend: how to start it
 
-Open another terminal:
+Open another terminal and start the React web UI:
 
 ```bash
 cd Prompt2App/frontend
@@ -200,20 +203,14 @@ This is a Vite app, usually available on:
 
 - `http://localhost:5173`
 
-### Current frontend status
+The frontend now supports a simple project workspace with:
 
-The frontend does not currently use React Router.
+- authentication via `/auth/login` and `/auth/register`
+- project listing and creation under `/`
+- previewing generated files for a project at `/project/:projectId`
+- a backend proxy configured for `/api` and `/auth`
 
-So the only normal browser route in the web app is:
-
-- `/`
-
-Also note:
-
-- `src/App.jsx` is still the default Vite counter screen
-- `src/main.jsx` has been reduced to a plain React entry without Clerk
-
-So the frontend is currently more of a starter shell than a finished UI.
+> Note: The frontend needs the backend running on `http://localhost:8787` to call protected routes.
 
 ## 7. Preview mobile app
 
@@ -268,6 +265,8 @@ What this does:
 
 - fetches generated files from `/api/preview/:projectId`
 - syncs them into `backend/preview-app`
+
+> Important: editing project files through the `/api/edit` route updates R2 storage, but the Expo preview shell only sees those changes after you rerun `npm run preview:load -- <projectId> <jwtToken>`.
 - merges generated dependencies into the preview app package
 - removes previously synced generated files so stale preview files do not remain
 - keeps the preview workspace on an Expo SDK 54-compatible dependency stack

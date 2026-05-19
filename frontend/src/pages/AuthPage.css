@@ -1,0 +1,74 @@
+.auth-card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem;
+  border-radius: 1.75rem;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+}
+
+.auth-header {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #38bdf8;
+}
+
+.auth-card h1 {
+  margin: 0;
+  font-size: clamp(2rem, 2.8vw, 2.8rem);
+  color: #f8fafc;
+}
+
+.subtext {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.7;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field-group {
+  display: grid;
+  gap: 0.65rem;
+  color: #cbd5e1;
+  text-align: left;
+}
+
+.field-group span {
+  font-size: 0.95rem;
+}
+
+.field-group input {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  color: #f8fafc;
+  border-radius: 1rem;
+}
+
+.field-group input:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+}
+
+.alert.error {
+  color: #fee2e2;
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.24);
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+}

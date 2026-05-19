@@ -9,6 +9,7 @@ import { sendMessage } from "./routes/message";
 import { testRoute } from "./routes/test-db";
 import { auth } from "./routes/auth";
 import { protectedRoutes } from "./routes/protected";
+import previewQr from "./routes/previewQr";
 
 const app = new Hono<AppEnv>();
 
@@ -25,6 +26,9 @@ app.route("/auth", auth);
 // ---------------- PROTECTED ROUTES ----------------
 // Everything inside protectedRoutes will be under /api
 app.route("/api", protectedRoutes);
+
+// ---------------- PUBLIC PREVIEW ROUTES ----------------
+app.route("/preview-qr", previewQr);
 
 // Durable Object test route
 app.get("/do", async (c: Context<{ Bindings: Bindings }>) => {

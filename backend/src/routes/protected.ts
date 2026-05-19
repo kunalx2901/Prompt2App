@@ -8,6 +8,9 @@ import projectTree from "./projectTree";
 import fileContent from "./fileContent";
 import edit from "./edit";
 import preview from "./preview";
+import previewSync from "./previewSync";
+import previewStart from "./previewStart";
+import previewQr from "./previewQr";
 import type { AppEnv } from "../types/app";
 
 const protectedRoutes = new Hono<AppEnv>();
@@ -35,5 +38,11 @@ protectedRoutes.route("/edit", edit);
 
 // for previewing the project 
 protectedRoutes.route("/preview", preview);
+
+// run preview sync script (writes preview-app files)
+protectedRoutes.route("/preview-sync", previewSync);
+
+// start preview locally (runs npm install && npm start). Disabled by default.
+protectedRoutes.route("/preview-start", previewStart);
 
 export { protectedRoutes };
