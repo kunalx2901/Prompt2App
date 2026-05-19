@@ -1,50 +1,68 @@
-# Welcome to your Expo app 👋
+# Prompt2App Preview App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This folder is the Expo workspace used to run generated projects from the backend preview API.
 
-## Get started
+## How preview sync works
 
-1. Install dependencies
+1. Generate or edit a project through the backend.
+2. Fetch the generated files through `GET /api/preview/:projectId`.
+3. Sync those files into this Expo workspace.
+4. Install dependencies in this folder.
+5. Start Expo and open the app in Expo Go, Android, iOS, or web.
 
-   ```bash
-   npm install
-   ```
+## Sync a generated project into the preview app
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+From `backend/` run:
 
 ```bash
-npm run reset-project
+npm run preview:load -- <projectId> <jwtToken>
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Example:
 
-## Learn more
+```bash
+npm run preview:load -- 123e4567-e89b-12d3-a456-426614174000 eyJhbGciOi...
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Optional third argument:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run preview:load -- <projectId> <jwtToken> http://localhost:8787
+```
 
-## Join the community
+## Start the preview app
 
-Join our community of developers creating universal apps.
+After syncing:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+cd preview-app
+npm install
+npm start
+```
+
+If you see stale content or the old project still appears, restart with a cleared Expo cache:
+
+```bash
+npm start -- --clear
+```
+
+If you were previously on an Expo 50 preview setup and Expo Go says the project is incompatible, re-run sync and reinstall:
+
+```bash
+cd ../
+npm run preview:load -- <projectId> <jwtToken>
+cd preview-app
+rm -rf node_modules package-lock.json
+npm install
+npm start -- --clear
+```
+
+## Notes
+
+- The sync script writes generated source files like `App.js`, `screens/*`, and similar app files into this folder.
+- It also merges generated dependencies into `preview-app/package.json` while keeping the Expo start scripts stable.
+- The preview workspace is pinned to Expo SDK 54 compatibility for Expo Go 54.
+- The sync script removes stale `package-lock.json` so old Expo SDK lock state does not conflict with the current preview SDK.
+- It does not overwrite `app.json` because this workspace keeps one stable Expo app configuration.
+- It tracks previously synced generated files and removes them before the next sync, so old files do not leak into the next preview.
+- This workspace is intentionally configured as a classic Expo app runner, not an Expo Router app.

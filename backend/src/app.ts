@@ -1,16 +1,16 @@
-import { Hono, Context } from 'hono';
+import { Hono, Context } from "hono";
 import type { Bindings } from "./types/bindings";
+import type { AppEnv } from "./types/app";
 
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler } from "./middleware/errorHandler";
 import { healthRoute } from "./routes/health";
 import { createSession } from "./routes/session";
 import { sendMessage } from "./routes/message";
 import { testRoute } from "./routes/test-db";
-import { clerkTest } from './routes/clerk-test';
-
+import { auth } from "./routes/auth";
 import { protectedRoutes } from "./routes/protected";
 
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<AppEnv>();
 
 // Global error handler
 app.use("*", errorHandler);
@@ -19,14 +19,12 @@ app.use("*", errorHandler);
 app.get("/health", healthRoute);
 app.post("/session", createSession);
 app.post("/message", sendMessage);
-app.route('/', testRoute);
-
-// TEMPORARY: Clerk test routes (REMOVE IN PRODUCTION)
-app.route('/clerk', clerkTest);
+app.route("/", testRoute);
+app.route("/auth", auth);
 
 // ---------------- PROTECTED ROUTES ----------------
 // Everything inside protectedRoutes will be under /api
-app.route('/api', protectedRoutes);
+app.route("/api", protectedRoutes);
 
 // Durable Object test route
 app.get("/do", async (c: Context<{ Bindings: Bindings }>) => {

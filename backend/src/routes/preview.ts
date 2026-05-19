@@ -1,8 +1,8 @@
-import { Hono } from "hono"
-import { listFiles, getFile } from "../storage/r2"
-import type { Bindings } from "../types/bindings"
+import { Hono } from "hono";
+import { listFiles, getFile } from "../storage/r2";
+import type { AppEnv } from "../types/app";
 
-const preview = new Hono<{ Bindings: Bindings }>()
+const preview = new Hono<AppEnv>();
 
 preview.get("/:projectId", async (c) => {
 

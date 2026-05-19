@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { listFiles } from "../storage/r2";
-import { Bindings } from "../types/bindings";
+import type { AppEnv } from "../types/app";
 
-const projectTree = new Hono<{ Bindings: Bindings }>();
+const projectTree = new Hono<AppEnv>();
 
 projectTree.get("/:projectId/tree", async (c) => {
 

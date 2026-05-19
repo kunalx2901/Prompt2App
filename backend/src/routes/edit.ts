@@ -1,13 +1,14 @@
-import { Hono } from "hono"
-import { stream } from "hono/streaming"
-import { createPrisma } from "../db/prisma"
-import { listFiles, getFile, putFile } from "../storage/r2"
-import { editProjectFilesStream } from "../services/ai"
-import { Bindings } from "../types/bindings"
-import { selectRelevantFiles } from "../services/fileSelector"
-import { validateProjectFiles } from "../services/validator"
+import { Hono } from "hono";
+import { stream } from "hono/streaming";
+import { createPrisma } from "../db/prisma";
+import { listFiles, getFile, putFile } from "../storage/r2";
+import { editProjectFilesStream } from "../services/ai";
+import { selectRelevantFiles } from "../services/fileSelector";
+import { validateProjectFiles } from "../services/validator";
+import { markPreviewForSync } from "../services/previewSync";
+import type { AppEnv } from "../types/app";
 
-const edit = new Hono<{ Bindings: Bindings }>()
+const edit = new Hono<AppEnv>();
 
 edit.post("/", async (c) => {
 
@@ -86,6 +87,13 @@ edit.post("/", async (c) => {
 
       await send("file", `Updated ${path}`)
     }
+
+    // Mark that preview needs to be synced
+    markPreviewForSync(projectId)
+
+    await send("status", "✅ Files updated in R2. Run preview sync to see changes in Expo.")
+    
+    await send("preview-sync", `npm run preview:load -- ${projectId} <your-jwt-token>`)
 
     await send("done", "Edit completed")
 

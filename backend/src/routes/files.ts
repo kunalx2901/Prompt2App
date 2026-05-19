@@ -1,13 +1,13 @@
-import { Hono } from 'hono';
-import type { Bindings } from '../types/bindings';
-import { putFile, getFile, listFiles, deleteFile, deleteByPrefix } from '../storage/r2';
+import { Hono } from "hono";
+import type { AppEnv } from "../types/app";
+import { putFile, getFile, listFiles, deleteFile } from "../storage/r2";
 
-const files = new Hono<{ Bindings: Bindings }>();
+const files = new Hono<AppEnv>();
 
 // 🧠 Utility: sanitize path
 const validatePath = (path: string) => {
-  if (!path || path.includes('..') || path.startsWith('/')) {
-    throw new Error('Invalid file path');
+  if (!path || path.includes("..") || path.startsWith("/")) {
+    throw new Error("Invalid file path");
   }
 };
 
@@ -50,6 +50,10 @@ files.get('/:projectId/file/*', async (c) => {
   const projectId = c.req.param('projectId');
   const path = c.req.param('*');
 
+  if (!path) {
+    return c.json({ error: 'Missing file path' }, 400);
+  }
+
   validatePath(path);
 
   const key = `${user.id}/${projectId}/files/${path}`;
@@ -79,6 +83,10 @@ files.delete('/:projectId/file/*', async (c) => {
   const user = c.get('user');
   const projectId = c.req.param('projectId');
   const path = c.req.param('*');
+
+  if (!path) {
+    return c.json({ error: 'Missing file path' }, 400);
+  }
 
   validatePath(path);
 

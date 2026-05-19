@@ -16,7 +16,15 @@ export const createSnack = async (
     }
   )
 
-  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(`Snack API failed (${response.status}): ${await response.text()}`);
+  }
+
+  const data: any = await response.json();
+
+  if (!data?.id) {
+    throw new Error("Snack API response missing snack ID");
+  }
 
   return `https://snack.expo.dev/${data.id}`
 }

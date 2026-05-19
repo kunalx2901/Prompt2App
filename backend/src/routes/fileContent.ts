@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { getFile } from "../storage/r2";
-import { Bindings } from "../types/bindings";
+import type { AppEnv } from "../types/app";
 
-const fileContent = new Hono<{ Bindings: Bindings }>();
+const fileContent = new Hono<AppEnv>();
 
 // for viewing the files 
 fileContent.get("/:projectId/:path{.+}", async (c) => {

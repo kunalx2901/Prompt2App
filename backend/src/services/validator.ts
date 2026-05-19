@@ -32,9 +32,12 @@ export default function App() {
           start: "expo start"
         },
         dependencies: {
-          expo: "~50.0.0",
-          react: "18.2.0",
-          "react-native": "0.73.0"
+          expo: "~54.0.33",
+          react: "19.1.0",
+          "react-native": "0.81.5"
+        },
+        devDependencies: {
+          "@types/react": "~19.1.0"
         }
       },
       null,

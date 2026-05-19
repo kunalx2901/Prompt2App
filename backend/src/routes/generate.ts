@@ -2,15 +2,15 @@ import { Hono } from "hono";
 import { createPrisma } from "../db/prisma";
 import { generateProjectFiles } from "../services/ai";
 import { putFile } from "../storage/r2";
-import { Bindings } from "../types/bindings";
 import { stream } from "hono/streaming";
-import { validateProjectFiles } from "../services/validator"
+import { validateProjectFiles } from "../services/validator";
+import type { AppEnv } from "../types/app";
 
 type GeneratedFiles = {
   files: Record<string, string>;
 };
 
-const generate = new Hono<{ Bindings: Bindings }>();
+const generate = new Hono<AppEnv>();
 
 generate.post("/", async (c) => {
 

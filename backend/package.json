@@ -6,7 +6,8 @@
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev --host 0.0.0.0",
 		"start": "wrangler dev",
-		"cf-typegen": "wrangler types"
+		"cf-typegen": "wrangler types",
+		"preview:load": "node scripts/loadPreview.js"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20260305.0",
@@ -15,7 +16,6 @@
 		"wrangler": "^4.67.0"
 	},
 	"dependencies": {
-		"@clerk/backend": "^2.32.1",
 		"@prisma/client": "^6.6.0",
 		"@prisma/extension-accelerate": "^2.0.2",
 		"fetch": "^1.1.0",
