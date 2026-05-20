@@ -13,7 +13,7 @@ previewQr.get('/', async (c) => {
   if (!url) return c.text('Missing url', 400)
 
   const type = (c.req.query('type') || 'svg').toLowerCase()
-  const size = toNumber(c.req.query('size'), 300)
+  const size = toNumber(c.req.query('size') || null, 300)
 
   try {
     const QR = await import('qrcode')

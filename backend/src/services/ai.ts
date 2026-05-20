@@ -1,12 +1,60 @@
-export type GeneratedFiles = {
-  files: Record<string, string>;
-};
+export type GeneratedFiles =
+  Record<string, string>;
 
 const AI_MODELS = [
   "qwen/qwen3-coder",
   "deepseek/deepseek-chat",
   "meta-llama/llama-3.3-70b-instruct:free"
 ];
+
+const MAX_REPAIR_ATTEMPTS = 3;
+
+const LOCKED_EXPO_DEPENDENCIES = {
+  expo: "~54.0.0",
+  react: "19.1.0",
+  "react-native": "0.81.5"
+};
+
+// All common nav/UI packages the AI might use — kept in sync with validator.ts
+const SAFE_DEFAULT_DEPENDENCIES = {
+  "@react-navigation/native": "^7.1.17",
+  "@react-navigation/stack": "^7.3.10",
+  "@react-navigation/bottom-tabs": "^7.0.0",
+  "@react-navigation/drawer": "^7.0.0",
+  "react-native-safe-area-context": "5.4.0",
+  "react-native-screens": "~4.11.1",
+  "react-native-gesture-handler": "~2.24.0",
+  "react-native-reanimated": "~3.17.4",
+  "@expo/vector-icons": "^14.0.0"
+};
+
+const FORBIDDEN_DEPENDENCIES = [
+  "metro",
+  "metro-config",
+  "metro-core",
+  "metro-runtime",
+  "metro-resolver",
+  "@react-native/babel-plugin-codegen",
+  "@react-native/codegen",
+  "@react-native/metro-config",
+  "@react-native/dev-middleware",
+  "react-native-codegen",
+  "react-native-web",
+  "expo-router",
+  "@babel/core",
+  "@babel/runtime",
+  "babel-preset-expo",
+  "@expo/metro-runtime",
+  "webpack",
+  "vite",
+  "native-base",
+  "nativewind",
+  "tailwindcss",
+  "next",
+  "vue",
+  "angular"
+];
+
 const JSON_ONLY_SYSTEM_PROMPT = `
 You are an expert React Native developer and Expo application architect.
 
@@ -26,7 +74,7 @@ CORE RULES
 
 1. Return ONLY valid JSON.
 2. Do NOT return markdown.
-3. Do NOT wrap output in triple backticks.
+3. Do NOT wrap output in triple \`backticks\`.
 4. Do NOT explain anything.
 5. Do NOT include comments outside JSON.
 6. Output must always follow the exact schema.
@@ -48,6 +96,15 @@ Return ONLY this structure:
     ...
   }
 }
+
+==================================================
+NAVIGATION RULES
+==================================================
+
+IMPORTANT: Always use @react-navigation/stack (NOT native-stack) when creating stack navigators.
+Use createStackNavigator from @react-navigation/stack.
+Always include @react-navigation/stack in package.json dependencies.
+Always include @expo/vector-icons in package.json when using icons.
 
 ==================================================
 PROJECT ARCHITECTURE REQUIREMENTS
@@ -116,6 +173,9 @@ Ensure dependencies are valid for:
 - Expo SDK 54
 - React 19.1.0
 - React Native 0.81.5
+- expo-managed package versions
+- \`sdkVersion\` in app.json
+- \`main\` set to \`node_modules/expo/AppEntry.js\`
 
 Do not use unsupported packages.
 
@@ -129,73 +189,9 @@ Generate complete package.json including:
 - expo configuration
 - valid package versions
 
-==================================================
-UI/UX REQUIREMENTS
-==================================================
-
-Generated applications should:
-- Have modern UI
-- Use consistent spacing
-- Use readable typography
-- Use proper layout hierarchy
-- Support responsive layouts
-- Support dark/light friendly design where appropriate
-
-==================================================
-STATE MANAGEMENT
-==================================================
-
-For small apps:
-- useState
-- useContext
-
-For medium/large apps:
-- Context API
-- custom hooks
-
-Avoid Redux unless explicitly requested.
-
-==================================================
-FILE GENERATION RULES
-==================================================
-
-Each file must:
-- Have complete code
-- Include imports
-- Include exports
-- Be immediately runnable
-- Not depend on missing files
-
-Never reference files that do not exist.
-
-==================================================
-NAVIGATION RULES
-==================================================
-
-If multiple screens exist:
-- Configure React Navigation properly
-- Include navigation container setup
-- Generate navigation files
-
-==================================================
-ERROR HANDLING
-==================================================
-
-Always include:
-- Basic loading states
-- Empty states when appropriate
-- Error handling where relevant
-
-==================================================
-PERFORMANCE REQUIREMENTS
-==================================================
-
-Avoid:
-- unnecessary re-renders
-- deeply nested components
-- duplicate logic
-
-Prefer reusable abstractions.
+ALWAYS include in dependencies:
+- @react-navigation/stack (when using stack navigation)
+- @expo/vector-icons (when using icons)
 
 ==================================================
 JSON VALIDITY RULES
@@ -208,6 +204,7 @@ VERY IMPORTANT:
 - Escape newlines correctly.
 - Never include trailing commas.
 - Never break JSON formatting.
+- ALL files must be inside the "files" key — do NOT add files at the top level.
 
 ==================================================
 FINAL BEHAVIOR
@@ -229,14 +226,157 @@ Always prioritize:
 - maintainability
 - Expo compatibility
 - React Native best practices
+
+Do NOT generate or override core Expo runtime dependencies.
+
+Never generate:
+- metro
+- metro-config
+- react-native-web
+- babel-preset-expo
+- expo-router
+- @react-native/* internals
+
+The preview runtime already manages these dependencies.
+
+Only generate lightweight app-level dependencies.
 `;
+
+const JSON_REPAIR_SYSTEM_PROMPT = `
+You are a JSON repair engine.
+
+Your task is to repair incomplete or malformed JSON.
+
+Rules:
+- Return ONLY valid JSON.
+- Do NOT explain anything.
+- Do NOT wrap output in markdown.
+- Preserve all existing content.
+- Complete truncated JSON structures.
+- Ensure all brackets and quotes are properly closed.
+- Ensure final JSON is parseable.
+- ALL file content must remain inside the "files" key.
+
+The JSON structure should remain exactly as provided.
+`;
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-const isRetryableStatus = (status: number) => {
-  return [429, 500, 502, 503, 504].includes(status);
+const isRetryableStatus = (status: number) =>
+  [429, 500, 502, 503, 504].includes(status);
+
+const cleanAiJson = (content: string) =>
+  content
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+const extractJsonObject = (content: string) => {
+  const firstBrace = content.indexOf("{");
+  const lastBrace = content.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return content;
+  }
+
+  return content.slice(firstBrace, lastBrace + 1);
 };
+
+/**
+ * The AI sometimes returns extra keys at the root level alongside "files",
+ * e.g. { "files": {...}, "App.js": "fallback", "package.json": "fallback" }.
+ * This strips everything except the "files" key so the caller always gets
+ * a clean { files: Record<string,string> } shape.
+ */
+const extractFilesOnly = (
+  parsed: any
+): GeneratedFiles => {
+
+  if (
+    !parsed ||
+    typeof parsed !== "object"
+  ) {
+    throw new Error(
+      "Parsed value is not an object"
+    );
+  }
+
+  // =====================================
+  // STANDARD AI FORMAT
+  // { files: { ... } }
+  // =====================================
+
+  if (
+    parsed.files &&
+    typeof parsed.files === "object" &&
+    !Array.isArray(parsed.files)
+  ) {
+
+    const cleaned:
+      Record<string, string> = {};
+
+    for (const [
+      key,
+      value
+    ] of Object.entries(parsed.files)) {
+
+      if (
+        typeof value === "string"
+      ) {
+        cleaned[key] = value;
+      }
+
+    }
+
+    if (
+      Object.keys(cleaned).length > 0
+    ) {
+      return cleaned;
+    }
+  }
+
+  // =====================================
+  // ROOT FILE FORMAT
+  // { "App.js": "...", ... }
+  // =====================================
+
+  const cleaned:
+    Record<string, string> = {};
+
+  for (const [
+    key,
+    value
+  ] of Object.entries(parsed)) {
+
+    if (
+      typeof value === "string"
+    ) {
+      cleaned[key] = value;
+    }
+
+  }
+
+  if (
+    Object.keys(cleaned).length === 0
+  ) {
+
+    console.error(
+      "[AI PARSE FAILURE]",
+      parsed
+    );
+
+    throw new Error(
+      "No valid files found"
+    );
+  }
+
+  return cleaned;
+};
+
+// ─── Core HTTP ───────────────────────────────────────────────────────────────
 
 const makeOpenRouterRequest = async ({
   apiKey,
@@ -247,20 +387,13 @@ const makeOpenRouterRequest = async ({
   apiKey: string;
   body: any;
   stream?: boolean;
-  // startModelIndex chooses which AI_MODELS index to try first
   startModelIndex?: number;
 }): Promise<{ response: Response; model: string }> => {
   let lastError: any;
 
-  const models = AI_MODELS.slice();
+  for (let i = startModelIndex; i < AI_MODELS.length; i++) {
+    const model = AI_MODELS[i];
 
-  // rotate models so we start from the requested index
-  if (startModelIndex && startModelIndex > 0) {
-    const head = models.splice(0, startModelIndex % models.length);
-    models.push(...head);
-  }
-
-  for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const response = await fetch(
@@ -292,23 +425,22 @@ const makeOpenRouterRequest = async ({
         }
 
         console.warn(
-          `Retryable AI error (${response.status}) with model ${model}`
+          `Retryable AI error (${response.status}) with model ${model}, attempt ${attempt + 1}`
         );
 
         let retryDelay = 2000;
 
         try {
           const parsed = JSON.parse(errorText);
-
           const retryAfter = parsed?.error?.metadata?.retry_after_seconds;
-
           if (retryAfter) {
             retryDelay = retryAfter * 1000;
           }
-        } catch {}
+        } catch {
+          // ignore parse error on error body
+        }
 
         await sleep(retryDelay);
-
         lastError = new Error(errorText);
       } catch (err) {
         lastError = err;
@@ -317,72 +449,232 @@ const makeOpenRouterRequest = async ({
     }
   }
 
-  throw lastError || new Error("All AI providers failed");
+  throw lastError ?? new Error("All AI providers failed");
 };
 
-const cleanAiJson = (content: string) =>
-  content
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+// ─── JSON Repair ─────────────────────────────────────────────────────────────
 
-const extractJsonObject = (content: string) => {
-  const firstBrace = content.indexOf("{");
-  const lastBrace = content.lastIndexOf("}");
+const repairJsonWithAi = async (
+  brokenContent: string,
+  apiKey: string
+): Promise<string> => {
+  const { response } = await makeOpenRouterRequest({
+    apiKey,
+    body: {
+      temperature: 0,
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: JSON_REPAIR_SYSTEM_PROMPT
+        },
+        {
+          role: "user",
+          content: `Repair this incomplete or malformed JSON.\n\nReturn ONLY valid JSON.\n\nBroken JSON:\n${brokenContent}`
+        }
+      ]
+    }
+  });
 
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    return content;
-  }
-
-  return content.slice(firstBrace, lastBrace + 1);
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? brokenContent;
 };
 
-const parseGeneratedFilesPayload = (content: string): GeneratedFiles => {
+// ─── Parse + Sanitize ────────────────────────────────────────────────────────
+
+const parseGeneratedFilesPayload = async (
+  content: string,
+  apiKey: string
+): Promise<Record<string, string>> => {
   const cleaned = cleanAiJson(content);
+
   const candidates = [cleaned, extractJsonObject(cleaned)];
 
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-
-      if (!parsed.files || typeof parsed.files !== "object") {
-        throw new Error("AI response missing 'files' property");
-      }
-
-      return parsed as GeneratedFiles;
+      // extractFilesOnly handles nested/polluted structures safely
+      return extractFilesOnly(parsed);
     } catch {
       continue;
     }
   }
 
-  console.error("JSON PARSE ERROR:", cleaned);
-  throw new Error("AI returned invalid or incomplete JSON");
+  console.error("JSON PARSE ERROR — attempting AI repair:", cleaned);
+
+  try {
+    const repaired = await repairJsonWithAi(cleaned, apiKey);
+    const repairedParsed = JSON.parse(
+      extractJsonObject(cleanAiJson(repaired))
+    );
+    return extractFilesOnly(repairedParsed);
+  } catch (repairError) {
+    console.error("AI JSON repair failed", repairError);
+    throw new Error(
+      "AI returned invalid or incomplete JSON after repair attempt"
+    );
+  }
 };
 
-const createRepairGenerateMessages = (prompt: string, previousResponse: string) => [
+const sanitizeGeneratedFiles = (
+  generated: GeneratedFiles
+): GeneratedFiles => {
+  const files = {
+    ...generated
+  };
+
+  if (!files["package.json"]) {
+    return files;
+  }
+
+  try {
+    const packageJson = JSON.parse(
+      files["package.json"]
+    );
+
+    packageJson.dependencies = {
+      ...(packageJson.dependencies ?? {})
+    };
+
+    packageJson.devDependencies = {
+      ...(packageJson.devDependencies ?? {})
+    };
+
+    // Remove forbidden packages
+    for (const dep of FORBIDDEN_DEPENDENCIES) {
+      delete packageJson.dependencies[
+        dep
+      ];
+
+      delete packageJson.devDependencies[
+        dep
+      ];
+    }
+
+    // Inject safe dependencies
+    packageJson.dependencies = {
+      ...packageJson.dependencies,
+      ...SAFE_DEFAULT_DEPENDENCIES,
+      ...LOCKED_EXPO_DEPENDENCIES
+    };
+
+    packageJson.scripts = {
+      start: "expo start",
+      android:
+        "expo start --android",
+      ios: "expo start --ios",
+      web: "expo start --web"
+    };
+
+    packageJson.name ??=
+      "prompt2app-project";
+
+    packageJson.version ??=
+      "1.0.0";
+
+    packageJson.private = true;
+
+    packageJson.main =
+      "node_modules/expo/AppEntry.js";
+
+    files["package.json"] =
+      JSON.stringify(
+        packageJson,
+        null,
+        2
+      );
+
+    return files;
+  } catch (err) {
+    console.error(
+      "Failed to sanitize package.json",
+      err
+    );
+
+    return files;
+  }
+};
+
+// ─── Message Builders ────────────────────────────────────────────────────────
+
+const createEditMessages = (
+  files: Record<string, string>,
+  prompt: string
+) => [
+  {
+    role: "system",
+    content: `
+You are an expert React Native Expo engineer.
+
+You are editing an EXISTING project.
+
+IMPORTANT RULES:
+
+- Modify ONLY the files necessary for the user's request.
+- Do NOT regenerate the entire project.
+- Do NOT replace unrelated files.
+- Preserve existing architecture.
+- Preserve navigation structure.
+- Preserve component hierarchy.
+- Preserve existing working logic unless modification is required.
+- NEVER replace App.js unless explicitly necessary.
+- NEVER simplify the app into placeholder content.
+- NEVER generate fallback screens.
+- NEVER remove existing files unless explicitly requested.
+- Return ONLY modified files.
+- Unmodified files must NOT be returned.
+- Keep all code Expo SDK 54 compatible.
+- Keep React Native 0.81.5 compatible.
+- Keep React 19.1.0 compatible.
+- Use ONLY Expo-compatible libraries.
+- Maintain valid imports.
+- Maintain valid JSX syntax.
+- Maintain working navigation.
+
+Return ONLY valid JSON.
+
+Response format:
+
+{
+  "files": {
+    "screens/HomeScreen.js": "...",
+    "components/Button.js": "..."
+  }
+}
+
+Do not include markdown.
+Do not include explanations.
+Do not include unchanged files.
+`
+  },
+  {
+    role: "user",
+    content: `
+Existing project files:
+
+${JSON.stringify(files, null, 2)}
+
+User edit request:
+
+${prompt}
+
+Modify ONLY the required files.
+`
+  }
+];
+
+const createRepairGenerateMessages = (
+  prompt: string,
+  previousResponse: string
+) => [
   {
     role: "system",
     content: JSON_ONLY_SYSTEM_PROMPT
   },
   {
     role: "user",
-    content: `The previous AI response contained invalid or incomplete JSON. Complete the project response into valid JSON only.
-
-User request:
-${prompt}
-
-Previous partial response:
-${previousResponse}
-
-Return ONLY valid JSON in this exact shape:
-{
-  "files": {
-    "App.js": "...",
-    "package.json": "...",
-    "app.json": "..."
-  }
-}
-`
+    content: `The previous AI response contained invalid or incomplete JSON. Complete the project response into valid JSON only.\n\nUser request:\n${prompt}\n\nPrevious partial response:\n${previousResponse}\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "files": {\n    "App.js": "...",\n    "package.json": "...",\n    "app.json": "..."\n  }\n}\n\nIMPORTANT: ALL files must be inside the "files" key. Do not add any keys at the root level.`
   }
 ];
 
@@ -397,35 +689,24 @@ const createRepairEditMessages = (
   },
   {
     role: "user",
-    content: `The previous AI response contained invalid or incomplete JSON while editing project files. Use the information below to repair it and return only valid JSON.
-
-Project files:
-${JSON.stringify(files)}
-
-User request:
-${prompt}
-
-Previous partial response:
-${previousResponse}
-
-Return ONLY valid JSON in this exact shape:
-{
-  "files": {
-    "App.js": "...",
-    "screens/LoginScreen.js": "..."
-  }
-}
-`
+    content: `The previous AI response contained invalid or incomplete JSON while editing project files. Use the information below to repair it and return only valid JSON.\n\nProject files:\n${JSON.stringify(files)}\n\nUser request:\n${prompt}\n\nPrevious partial response:\n${previousResponse}\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "files": {\n    "App.js": "...",\n    "screens/LoginScreen.js": "..."\n  }\n}\n\nIMPORTANT: ALL files must be inside the "files" key. Do not add any keys at the root level.`
   }
 ];
+
+// ─── Repair / Completion Helpers ─────────────────────────────────────────────
 
 const completeGenerateResponse = async (
   prompt: string,
   previousResponse: string,
   apiKey: string,
-  startModelIndex = 0
-): Promise<GeneratedFiles> => {
-  const { response, model } = await makeOpenRouterRequest({
+  startModelIndex = 0,
+  repairAttempt = 0
+): Promise<Record<string, string>> => {
+  if (repairAttempt >= MAX_REPAIR_ATTEMPTS) {
+    throw new Error("Exceeded maximum AI repair attempts");
+  }
+
+  const { response } = await makeOpenRouterRequest({
     apiKey,
     startModelIndex,
     body: {
@@ -450,7 +731,12 @@ const completeGenerateResponse = async (
     );
   }
 
-  return parseGeneratedFilesPayload(data.choices[0].message.content);
+  const parsed = await parseGeneratedFilesPayload(
+    data.choices[0].message.content,
+    apiKey
+  );
+
+  return sanitizeGeneratedFiles(parsed);
 };
 
 const completeEditResponse = async (
@@ -458,9 +744,14 @@ const completeEditResponse = async (
   prompt: string,
   previousResponse: string,
   apiKey: string,
-  startModelIndex = 0
-) => {
-  const { response, model } = await makeOpenRouterRequest({
+  startModelIndex = 0,
+  repairAttempt = 0
+): Promise<Record<string, string>> => {
+  if (repairAttempt >= MAX_REPAIR_ATTEMPTS) {
+    throw new Error("Exceeded maximum AI repair attempts");
+  }
+
+  const { response } = await makeOpenRouterRequest({
     apiKey,
     startModelIndex,
     body: {
@@ -485,112 +776,27 @@ const completeEditResponse = async (
     );
   }
 
-  return parseGeneratedFilesPayload(data.choices[0].message.content).files;
+  const parsed = await parseGeneratedFilesPayload(
+    data.choices[0].message.content,
+    apiKey
+  );
+
+  return sanitizeGeneratedFiles(parsed);
 };
 
-export const generateProjectFiles = async (
-  prompt: string,
-  apiKey: string
-): Promise<GeneratedFiles> => {
-  const { response, model } = await makeOpenRouterRequest({
-    apiKey,
-    body: {
-      temperature: 0.2,
-      max_tokens: 8000,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: JSON_ONLY_SYSTEM_PROMPT
-        },
-        {
-          role: "user",
-          content: `
-Generate a complete multi-file React Native Expo application.
-
-Requirements:
-- Target Expo SDK 54
-- Use React 19.1.0
-- Use React Native 0.81.5
-- Generate scalable folder structure
-- Generate all required files
-- Ensure project runs correctly in Expo Snack
-- Use production-quality architecture
-- Use modern React Native best practices
-- Use responsive layouts
-- Use reusable components
-
-User Request:
-${prompt}
-
-Return ONLY valid JSON.
-`
-        }
-      ]
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenRouter generate request failed (${response.status}): ${await response.text()}`
-    );
-  }
-
-  const data: any = await response.json();
-
-  // Debugging output
-  console.log("AI RESPONSE:", data);
-
-  if (!data.choices || !data.choices[0]) {
-    throw new Error(
-      "Invalid AI response from OpenRouter: " + JSON.stringify(data)
-    );
-  }
-
-  const rawContent = data.choices[0].message.content;
-
-  try {
-    return parseGeneratedFilesPayload(rawContent);
-  } catch (err) {
-    console.error("Initial AI generate response invalid JSON, attempting repair.", err);
-    const nextIndex = (AI_MODELS.indexOf(model) + 1) % AI_MODELS.length;
-    return completeGenerateResponse(prompt, rawContent, apiKey, nextIndex);
-  }
-};
-
-// to edit the files from the AI
-const createEditMessages = (files: Record<string, string>, prompt: string) => [
-  {
-    role: "system",
-    content: JSON_ONLY_SYSTEM_PROMPT
-  },
-  {
-    role: "user",
-    content: `
-Project files:
-${JSON.stringify(files)}
-
-User request:
-${prompt}
-
-Return JSON in this exact shape:
-
-{
-  "files": {
-    "App.js": "...",
-    "screens/LoginScreen.js": "..."
-  }
-}
-`
-  }
-];
+// ─── Non-Streaming Edit ──────────────────────────────────────────────────────
 
 const fetchEditNonStreaming = async (
   files: Record<string, string>,
   prompt: string,
   apiKey: string,
-  startModelIndex = 0
-) => {
+  startModelIndex = 0,
+  repairAttempt = 0
+): Promise<Record<string, string>> => {
+  if (repairAttempt >= MAX_REPAIR_ATTEMPTS) {
+    throw new Error("Exceeded maximum AI repair attempts");
+  }
+
   const { response, model } = await makeOpenRouterRequest({
     apiKey,
     startModelIndex,
@@ -612,18 +818,86 @@ const fetchEditNonStreaming = async (
 
   if (!data.choices?.[0]?.message?.content) {
     throw new Error(
-      "OpenRouter generate repair response did not contain message content"
+      "OpenRouter non-stream edit response did not contain message content"
     );
   }
 
-  const rawContent = data.choices[0].message.content;
+  const rawContent: string = data.choices[0].message.content;
 
   try {
-    return parseGeneratedFilesPayload(rawContent).files;
+    const parsed = await parseGeneratedFilesPayload(rawContent, apiKey);
+    return sanitizeGeneratedFiles(parsed);
   } catch (err) {
-    console.error("Non-stream edit response invalid JSON, attempting repair.", err);
-    const nextIndex = (AI_MODELS.indexOf(model) + 1) % AI_MODELS.length;
-    return completeEditResponse(files, prompt, rawContent, apiKey, nextIndex);
+    console.error(
+      "Non-stream edit response invalid JSON, attempting repair.",
+      err
+    );
+
+    const currentIndex = AI_MODELS.indexOf(model);
+    const nextIndex = (currentIndex + 1) % AI_MODELS.length;
+
+    return completeEditResponse(
+      files,
+      prompt,
+      rawContent,
+      apiKey,
+      nextIndex,
+      repairAttempt + 1
+    );
+  }
+};
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+export const generateProjectFiles = async (
+  prompt: string,
+  apiKey: string
+): Promise<Record<string, string>> => {
+  const { response, model } = await makeOpenRouterRequest({
+    apiKey,
+    body: {
+      temperature: 0.2,
+      max_tokens: 8000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: JSON_ONLY_SYSTEM_PROMPT
+        },
+        {
+          role: "user",
+          content: `Generate a complete multi-file React Native Expo application.\n\nRequirements:\n- Target Expo SDK 54\n- Use React 19.1.0\n- Use React Native 0.81.5\n- Generate scalable folder structure\n- Generate all required files\n- Ensure project runs correctly in Expo Snack\n- Use production-quality architecture\n- Use modern React Native best practices\n- Use responsive layouts\n- Use reusable components\n- Use @react-navigation/stack for stack navigation\n- Include @expo/vector-icons if using icons\n\nUser Request:\n${prompt}\n\nReturn ONLY valid JSON. ALL files must be inside the "files" key. Do not add any keys at the root level.`
+        }
+      ]
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `OpenRouter generate request failed (${response.status}): ${await response.text()}`
+    );
+  }
+
+  const data: any = await response.json();
+
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error(
+      "OpenRouter generate response did not contain message content"
+    );
+  }
+
+  const rawContent: string = data.choices[0].message.content;
+
+  try {
+    const parsed = await parseGeneratedFilesPayload(rawContent, apiKey);
+    return sanitizeGeneratedFiles(parsed);
+  } catch (err) {
+    console.error("Generate response invalid JSON, attempting repair.", err);
+
+    const currentIndex = AI_MODELS.indexOf(model);
+    const nextIndex = (currentIndex + 1) % AI_MODELS.length;
+
+    return completeGenerateResponse(prompt, rawContent, apiKey, nextIndex, 0);
   }
 };
 
@@ -632,7 +906,7 @@ export const editProjectFilesStream = async (
   prompt: string,
   apiKey: string,
   onToken: (token: string) => Promise<void>
-) => {
+): Promise<Record<string, string>> => {
   const { response, model } = await makeOpenRouterRequest({
     apiKey,
     stream: true,
@@ -664,38 +938,33 @@ export const editProjectFilesStream = async (
   let lastTokenAt = Date.now();
   let stalled = false;
 
-  const stallTimeoutMs = 8000; // if no tokens for 8s, consider stalled
+  const stallTimeoutMs = 8000;
 
   const handleSseLine = async (line: string) => {
-    if (!line.startsWith("data: ")) {
-      return;
-    }
+    if (!line.startsWith("data: ")) return;
 
     const data = line.slice("data: ".length).trim();
 
-    if (!data || data === "[DONE]") {
-      return;
-    }
+    if (!data || data === "[DONE]") return;
 
-    const parsed = JSON.parse(data);
-    const token = parsed.choices?.[0]?.delta?.content || "";
+    const parsed: any = JSON.parse(data as string);
+    const token: string = parsed.choices?.[0]?.delta?.content ?? "";
 
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     fullContent += token;
     lastTokenAt = Date.now();
     await onToken(token);
   };
 
-  // Watcher to cancel reader if streaming stalls
   const stallChecker = setInterval(() => {
     if (Date.now() - lastTokenAt > stallTimeoutMs) {
       stalled = true;
       try {
         reader.cancel().catch(() => {});
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
   }, 1000);
 
@@ -703,9 +972,7 @@ export const editProjectFilesStream = async (
     while (true) {
       const { done, value } = await reader.read();
 
-      if (done || stalled) {
-        break;
-      }
+      if (done || stalled) break;
 
       pendingLine += decoder.decode(value, { stream: true });
       const lines = pendingLine.split("\n");
@@ -726,38 +993,67 @@ export const editProjectFilesStream = async (
       try {
         await handleSseLine(pendingLine.trim());
       } catch {
-        // Ignore a trailing partial line and rely on the accumulated text.
+        // ignore trailing partial line
       }
     }
   } finally {
     clearInterval(stallChecker);
   }
 
-  // If stream stalled, attempt to complete using next model in list
+  const currentModelIndex = AI_MODELS.indexOf(model);
+  const nextIndex = (currentModelIndex + 1) % AI_MODELS.length;
+
   if (stalled) {
-    console.warn("Streaming stalled; attempting non-stream completion with next model");
-    const modelIndex = AI_MODELS.indexOf(model);
-    const nextIndex = (modelIndex + 1) % AI_MODELS.length;
+    console.warn(
+      "Streaming stalled; attempting non-stream completion with next model"
+    );
+
+    await onToken("\n\n⚡ Repairing incomplete AI response...\n\n");
 
     try {
-      return await fetchEditNonStreaming(files, `${prompt}\n\nPREVIOUS_RESPONSE:\n${fullContent}`, apiKey, nextIndex);
+      return await fetchEditNonStreaming(
+        files,
+        `${prompt}\n\nPREVIOUS_RESPONSE:\n${fullContent}`,
+        apiKey,
+        nextIndex,
+        0
+      );
     } catch (err) {
       console.error("Non-stream completion after stall failed:", err);
-      // fallthrough to parse attempt below
+      // fall through to final parse attempt
     }
   }
 
   try {
-    return parseGeneratedFilesPayload(fullContent).files;
-  } catch (error) {
-    console.error(
-      "Streamed edit response was invalid JSON. Falling back to non-stream parse path."
+    const parsed =
+      await parseGeneratedFilesPayload(
+        fullContent,
+        apiKey
+      );
+
+    const sanitized =
+      sanitizeGeneratedFiles(parsed);
+
+    const changedFiles =
+      sanitized;
+
+    console.log(
+      "[AI EDIT RESPONSE FILES]",
+      Object.keys(changedFiles)
     );
 
-    // try to complete with the next model after the streaming model
-    const modelIndex = AI_MODELS.indexOf(model);
-    const nextIndex = (modelIndex + 1) % AI_MODELS.length;
+    return changedFiles;
+  } catch (error) {
+    console.error(
+      "Streamed edit response was invalid JSON. Falling back to non-stream repair."
+    );
 
-    return fetchEditNonStreaming(files, `${prompt}\n\nPREVIOUS_RESPONSE:\n${fullContent}`, apiKey, nextIndex);
+    return fetchEditNonStreaming(
+      files,
+      `${prompt}\n\nPREVIOUS_RESPONSE:\n${fullContent}`,
+      apiKey,
+      nextIndex,
+      0
+    );
   }
 };

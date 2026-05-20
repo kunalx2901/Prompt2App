@@ -1,96 +1,111 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import ProjectCard from '../components/ProjectCard';
-import ThemeContext from '../context/ThemeContext';
-import { projects } from '../data/projects';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 
-export default function HomeScreen() {
-  const navigation = useNavigation();
-  const { theme } = useContext(ThemeContext);
-  
-  const handleProjectPress = (project) => {
-    navigation.navigate('ProjectDetail', { project });
+export default function HomeScreen({ navigation }) {
+  const [flipAnim] = useState(new Animated.Value(0));
+  const [isFlipping, setIsFlipping] = useState(false);
+
+  const flipCoin = () => {
+    if (isFlipping) return;
+    
+    setIsFlipping(true);
+    
+    Animated.sequence([
+      Animated.timing(flipAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(flipAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      const result = Math.random() > 0.5 ? 'Heads' : 'Tails';
+      setIsFlipping(false);
+      navigation.navigate('Result', { result });
+    });
   };
 
+  const spin = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg']
+  });
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}> 
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>John Doe</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Senior Mobile Developer</Text>
-        <Text style={[styles.description, { color: theme.text }]}>
-          I build exceptional digital experiences that are fast, accessible, visually appealing, and responsive.
+    <View style={styles.container}>
+      <Text style={styles.title}>Coin Toss</Text>
+      
+      <View style={styles.coinContainer}>
+        <Animated.View 
+          style={[
+            styles.coin, 
+            { 
+              transform: [{ rotateY: spin }] 
+            }
+          ]}
+        >
+          <Text style={styles.coinText}>?</Text>
+        </Animated.View>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.button}
+        onPress={flipCoin}
+        disabled={isFlipping}
+      >
+        <Text style={styles.buttonText}>
+          {isFlipping ? 'Flipping...' : 'TOSS COIN'}
         </Text>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Projects</Text>
-        {projects.map((project) => (
-          <TouchableOpacity 
-            key={project.id} 
-            onPress={() => handleProjectPress(project)}
-          >
-            <ProjectCard project={project} />
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Skills</Text>
-        <View style={styles.skillsContainer}>
-          {['React Native', 'JavaScript', 'TypeScript', 'UI/UX Design', 'Node.js', 'GraphQL'].map((skill, index) => (
-            <View key={index} style={[styles.skillBadge, { backgroundColor: theme.cardBackground }]}> 
-              <Text style={[styles.skillText, { color: theme.text }]}>{skill}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </ScrollView>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    padding: 20,
+    backgroundColor: 'black',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 5,
+    color: 'white',
+    marginBottom: 50,
   },
-  subtitle: {
+  coinContainer: {
+    marginBottom: 50,
+  },
+  coin: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'black',
+  },
+  coinText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  button: {
+    backgroundColor: 'white',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  buttonText: {
     fontSize: 18,
-    marginBottom: 15,
-  },
-  description: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  skillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  skillBadge: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    margin: 5,
-  },
-  skillText: {
-    fontSize: 14,
-    fontWeight: '500',
+    color: 'black',
   },
 });
